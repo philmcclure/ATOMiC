@@ -2,11 +2,15 @@ ATOMIC 0.1
 ==========
 Stand-alone atom feed generator for feed-only blogging
 
+October 21, 2026
+
+I'm writing a separate install script to setup the database and put everything where it goes.  Should've already done it.  By uploading to github, I'm kinda forcing myself to go ahead and finish what I should've already had done.
+
 August 9, 2026
 
-config - sets variables to fill in templates, number of posts to generate in feed, etc.
-Templates - framework template for generating the ATOM feed
-posts.db - sqlite3 database of all entries
+* config - sets variables to fill in templates, number of posts to generate in feed, etc.
+* Templates - framework template for generating the ATOM feed
+* posts.db - sqlite3 database of all entries
 
 Required:
 
