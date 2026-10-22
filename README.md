@@ -4,7 +4,7 @@ Stand-alone atom feed generator for feed-only blogging
 
 October 21, 2026
 
-I'm writing a separate install script to setup the database and put everything where it goes.  Should've already done it.  By uploading to github, I'm kinda forcing myself to go ahead and finish what I should've already had done.
+I'm writing a separate install script, but if you clone the repository and then move the script to somewhere in your path, it should work as is.
 
 August 9, 2026
 
