@@ -1,0 +1,145 @@
+#!/usr/bin/env bash
+
+PROGNAME="$(basename $0)"
+src_dir="${HOME}/.config/${PROGNAME}"
+DATABASE="${src_dir}/posts.db"
+TEMPLATES="${src_dir}/templates"
+VERSION="0.1"
+. "${src_dir}/config"
+. "${TEMPLATES}/header.txt"
+. "${TEMPLATES}/footer.txt"
+
+generate_items(){
+max_items=$(sqlite3 ${DATABASE} "SELECT COUNT(*) FROM posts;")
+if [ "$POST_COUNT" -eq 0 ]; then
+    count="1"
+elif [ "$max_items" -lt "$POST_COUNT" ]; then
+    count="1"
+else
+    count="$(( ${max_items}-${POST_COUNT}+1 ))"
+fi
+
+x=$max_items;
+while [ $x -ge "$count" ]; do
+IFS='|' read -r -a emp_data <<< "$(sqlite3 ${DATABASE} ".mode list" "SELECT title, pubdate, uuid, content FROM posts WHERE rowid=${x};")"
+    ITEM_TITLE="${emp_data[0]}"
+    PUBLICATION_DATE="${emp_data[1]}"
+    ITEM_UUID="${emp_data[2]}"
+    ITEM_CONTENT="${emp_data[3]}"
+
+    echo "    <entry>"
+    echo "        <title>${ITEM_TITLE}</title>"
+    echo "        <link href='${LINK}feed.xml' />"
+    echo "        <id>urn:uuid:${ITEM_UUID}</id>"
+    echo "        <updated>${PUBLICATION_DATE}</updated>"
+    echo "        <summary type=\"xhtml\"><div xmlns=\"http://www.w3.org/1999/xhtml\">${ITEM_CONTENT}</div></summary>"
+    echo "    </entry>"
+
+    x=$(( x-1 ));
+done
+}
+
+generate_feed(){
+if [ -z "$FEED_OUT" ]; then
+    echo "$HEADER"
+    generate_items
+    echo "$FOOTER"
+else
+    # if we're automatically putting the feed somewhere, check
+    # and see if the stylesheet is in the same location. If not,
+    # copy stylesheet to that location.
+    XML_STYLESHEET_LOCATION="${FEED_OUT%/*}/feed.xsl"
+    if [ ! -e $XML_STYLESHEET_LOCATION ]; then
+	    cp $TEMPLATES/feed.xsl ${FEED_OUT%/*}/feed.xsl
+    fi
+    echo "$HEADER" > "$FEED_OUT"
+    generate_items >> "$FEED_OUT"
+    echo "$FOOTER" >> "$FEED_OUT"
+fi
+}
+
+function finish {
+  rm "$scratch" > /dev/null 2>&1
+}
+trap finish EXIT
+
+
+new_item(){
+    PUBLICATION_DATE="$PUBLICATION_DATE"
+    ITEM_UUID="${POST_UUID}"
+
+    if [ -e "$FILE" ];then
+	    scratch="$FILE"
+    else
+            scratch=$(mktemp -t tmp.XXXXXX)
+            $EDITOR $scratch
+    fi
+
+    ITEM_TITLE=$( head -n1 ${scratch} | sed "s|'|''|g")
+    ITEM_CONTENT=$(sed '1d' ${scratch} | $MARKDOWN | sed '/^$/d' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g")
+    sqlite3 $DATABASE "INSERT INTO posts (title, pubdate, uuid, content) VALUES ('$ITEM_TITLE', '$PUBLICATION_DATE', '$ITEM_UUID' ,'$ITEM_CONTENT');"
+}
+
+edit_post(){
+if [[ "$POST" =~ ^\{?[A-F0-9a-f]{8}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{4}-[A-F0-9a-f]{12}\}?$ ]]; then
+ITEM_TITLE=$(sqlite3 ${DATABASE} "SELECT title FROM posts WHERE uuid = '${POST}'";)
+ITEM_CONTENT=$(sqlite3 ${DATABASE} "SELECT content FROM posts WHERE uuid = '${POST}'";)
+ITEM_UUID="$POST"
+else
+IFS='|' read -r -a emp_data <<< $(sqlite3 ${DATABASE} "SELECT title, uuid, content FROM posts ORDER BY rowid DESC LIMIT 1";)
+	ITEM_TITLE="${emp_data[0]}"
+        ITEM_UUID="${emp_data[1]}"
+        ITEM_CONTENT="${emp_data[2]}"
+fi
+scratch=$(mktemp -t tmp.XXXXXX)
+echo "$ITEM_TITLE" > $scratch
+echo >> $scratch
+echo "$ITEM_CONTENT" | sed 's/<p>//g' | sed 's/<\/p>/\n\n/g' >> $scratch
+$EDITOR $scratch
+ITEM_TITLE=$( head -n1 ${scratch} | sed "s|'|''|g" )
+ITEM_CONTENT=$(sed '1d' ${scratch} | $MARKDOWN | sed '/^$/d' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g" )
+sqlite3 ${DATABASE} "UPDATE posts SET title = '$ITEM_TITLE' WHERE uuid = '$ITEM_UUID';"
+sqlite3 ${DATABASE} "UPDATE posts SET content = '$ITEM_CONTENT' WHERE uuid = '$ITEM_UUID';"
+rm $scratch
+}
+
+help_menu(){
+    echo
+    echo "${PROGNAME} ${VERSION}"
+    length=$(echo "${PROGNAME}${VERSION}" | wc -c)
+    printf '%*s' "$length" | tr ' ' '=';echo
+    echo "The first line of your post is the title. The rest is the content."
+    echo "Usage:"
+    echo "${PROGNAME} -t (opens a text editor to write your post)"
+    echo "${PROGNAME} -f post_content.txt"
+    echo "${PROGNAME} -e <UUID-of-post-to-edit>"
+    echo "${PROGNAME} (no arguments generates feed)"
+    echo
+}
+
+while getopts ":f:e:t" opt; do
+    case "${opt}" in
+      t)
+	new_item
+	exit
+        ;;
+      f)
+	FILE="${OPTARG}"
+	new_item "$FILE"
+	exit
+	;;
+      e)
+	POST="${OPTARG}"
+	edit_post
+	exit
+	;;
+      *)
+        help_menu
+	exit
+        ;;
+     esac
+done
+if [ "$OPTIND" -eq 1 ]; then
+    generate_feed
+fi
+
