@@ -4,7 +4,9 @@ Stand-alone atom feed generator for feed-only blogging
 
 October 21, 2026
 
-I'm writing a separate install script, but if you clone the repository and then move the script to somewhere in your path, it should work as is.
+I will eventually include an install script.  
+
+For now, move the script "ATOMiC" to somewhere in your path, move the directory to "${HOME}/.config/ATOMiC" and edit the config to fit your situation.  The config file is pretty heavily commented, you should be able to figure it out.
 
 August 9, 2026
 
