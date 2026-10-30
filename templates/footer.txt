@@ -1,4 +1,0 @@
-FOOTER=$(cat <<EOF
-</feed>
-EOF
-)
