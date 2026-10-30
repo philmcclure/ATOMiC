@@ -1,18 +1,22 @@
 ATOMIC 0.1
 ==========
-Stand-alone atom feed generator for feed-only blogging
+Stand-alone ATOM feed generator for feed-only blogging
 
-October 21, 2026
+October 30, 2026
 
-I will eventually include an install script.  
+Finished the install script.  Clone the repo and run the install script. When it completes it will launch the config file in your `$EDITOR` or `nano` if your editor is unset.
 
-For now, move the script "ATOMiC" to somewhere in your path, move the directory to "${HOME}/.config/ATOMiC" and edit the config to fit your situation.  The config file is pretty heavily commented, you should be able to figure it out.
+The config file is heavily documented. Modify it to suit your situation.
+
+`ATOMiC -h` will list the options.
+
+---
 
 August 9, 2026
 
-* config - sets variables to fill in templates, number of posts to generate in feed, etc.
-* Templates - framework template for generating the ATOM feed
-* posts.db - sqlite3 database of all entries
+config - sets variables to fill in templates, number of posts to generate in feed, etc.
+Templates - framework template for generating the ATOM feed
+posts.db - sqlite3 database of all entries
 
 Required:
 

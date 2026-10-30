@@ -26,7 +26,7 @@ IFS='|' read -r -a emp_data <<< "$(sqlite3 ${DATABASE} ".mode list" "SELECT titl
     PUBLICATION_DATE="${emp_data[1]}"
     ITEM_UUID="${emp_data[2]}"
     CONTENT="${emp_data[3]}"
-    ITEM_CONTENT=$(echo "$CONTENT" | sed 's/XXX/\n\n/g' | $MARKDOWN)
+    ITEM_CONTENT=$(echo "$CONTENT" | sed 's/XXXXX/\n\n/g' | $MARKDOWN)
 
     echo "    <entry>"
     echo "        <title>${ITEM_TITLE}</title>"
@@ -77,7 +77,7 @@ new_item(){
     fi
 
     ITEM_TITLE=$( head -n1 ${scratch} | sed "s|'|''|g")
-    ITEM_CONTENT=$(sed '1d' ${scratch} | sed '/^$/d' | sed 's/$/XXX/g' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g")
+    ITEM_CONTENT=$(sed '1d' ${scratch} | sed '/^$/d' | sed 's/$/XXXXX/g' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g")
     sqlite3 $DATABASE "INSERT INTO posts (title, pubdate, uuid, content) VALUES ('$ITEM_TITLE', '$PUBLICATION_DATE', '$ITEM_UUID' ,'$ITEM_CONTENT');"
 }
 
@@ -95,10 +95,10 @@ fi
 scratch=$(mktemp -t tmp.XXXXXX)
 echo "$ITEM_TITLE" > $scratch
 echo >> $scratch
-echo "$ITEM_CONTENT" | sed 's/XXX/\n\n/g' >> $scratch
+echo "$ITEM_CONTENT" | sed 's/XXXXX/\n\n/g' >> $scratch
 $EDITOR $scratch
 ITEM_TITLE=$( head -n1 ${scratch} | sed "s|'|''|g" )
-ITEM_CONTENT=$(sed '1d' ${scratch} | sed '/^$/d' | sed 's/$/XXX/g' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g" )
+ITEM_CONTENT=$(sed '1d' ${scratch} | sed '/^$/d' | sed 's/$/XXXXX/g' | sed '2,$s/^/=/' | sed -e :a -e '$!N;s/\n=//;ta' -e 'P;D' | sed "s|'|''|g" )
 sqlite3 ${DATABASE} "UPDATE posts SET title = '$ITEM_TITLE' WHERE uuid = '$ITEM_UUID';"
 sqlite3 ${DATABASE} "UPDATE posts SET content = '$ITEM_CONTENT' WHERE uuid = '$ITEM_UUID';"
 rm $scratch

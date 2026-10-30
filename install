@@ -1,0 +1,189 @@
+#!/usr/bin/env bash
+
+### VARS ###
+SRC="${HOME}/.config/ATOMiC"
+CONFIG="${SRC}/config"
+TEMPLATES="${SRC}/templates"
+DATABASE="${SRC}/posts.db"
+
+### COLORS ###
+RED_BOLD="\e[1;31m"
+BOLD="\e[1m"
+CLEAR="\e[0m"
+
+### CHECK FOR REQUIREMENTS ###
+
+if ! command -v sqlite3 >/dev/null 2>&1; then
+    MISSING="sqlite3"
+fi
+
+if [ -f "/proc/sys/kernel/random/uuid" ]; then
+    UUID_CMD='cat /proc/sys/kernel/random/uuid'
+elif UUID=$(command -v uuidgen); then
+    UUID_CMD=$(which uuidgen)
+elif UUID=$(command -v uuid); then
+    UUID_CMD=$(which uuid)
+else
+    MISSING=", uuid"
+fi
+
+if [ "$MISSING" != "" ]; then
+    echo -e "${RED_BOLD}Missing dependencies. Install aborted.${CLEAR}"
+    echo
+    echo -e "Install ${BOLD}${MISSING}${CLEAR} and re-run script."
+    exit
+fi
+
+### CONFIG ###
+sample_conf=$(cat <<-'conf_EOF'
+### ATOMiC ###
+TITLE="Your feed name"
+LINK="http(s)://sample.tld/"
+FEED_OUT="/path/to/feed.xml" # Leave empty to output to STDOUT
+POST_COUNT="0"   # Number of posts to include in feed. '0' for all
+AUTHOR="$(whoami)" # Change to your name, or leave it.  Spec requires it
+EDITOR="/usr/bin/vi"  # Change this to your preferred text editor
+MARKDOWN="/path/to/markdown" # There's too many to check.
+
+conf_EOF
+)
+
+gen_conf(){
+echo "$sample_conf" > ${CONFIG}
+echo "POST_UUID=\$( ${UUID_CMD} )" >> ${CONFIG}
+echo >> ${CONFIG}
+echo '### DO NOT MODIFY ###' >> ${CONFIG}
+echo 'PUBLICATION_DATE=$(date +"%Y-%m-%dT%H:%M:%S%:z")' >> ${CONFIG}
+echo "UUID=\"$( ${UUID_CMD} )\"" >> ${CONFIG}
+}
+
+### TEMPLATES ###
+header_template=$(cat <<-'ht_EOF'
+HEADER=$(cat<<EOF
+<?xml version="1.0" encoding="utf-8"?>
+<?xml-stylesheet href="/feed.xsl" type="text/xsl"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+<link rel="self" type="application/atom+xml" href="${LINK}${FEED_NAME}" />
+    <title>${TITLE}</title>
+    <link href="${LINK}" />
+    <updated>${PUBLICATION_DATE}</updated>
+    <author><name>${AUTHOR}</name></author>
+    <id>urn:uuid:${UUID}</id>
+EOF
+)
+ht_EOF
+)
+
+footer_template=$(cat <<-'ft_EOF'
+FOOTER=$(cat <<EOF
+</feed>
+EOF
+)
+ft_EOF
+)
+
+feed_template=$(cat <<-'feed_EOF'
+<xsl:stylesheet
+  version="1.0"
+  xmlns:xsl="http://www.w3.org/1999/XSL/Transform"
+  xmlns:xhtml="http://www.w3.org/1999/xhtml"
+  xmlns:atom="http://www.w3.org/2005/Atom"
+  exclude-result-prefixes="atom"
+>
+  <xsl:output method="html" version="1.0" encoding="UTF-8" indent="yes"/>
+  <xsl:template match="/">
+    <html xmlns="http://www.w3.org/1999/xhtml">
+      <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1"/>
+        <title><xsl:value-of select="atom:feed/atom:title"/></title>
+        <style type="text/css">
+		body{max-width:768px;margin:0 auto;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif,"Apple Color Emoji","Segoe UI Emoji","Segoe UI Symbol";font-size:16px;line-height:1.5em}section{margin:30px 15px}h1{font-size:2em;margin:.67em 0;line-height:1.125em}h2{border-bottom:1px solid #eaecef;padding-bottom:.3em}.alert{background:#fff5b1;padding:4px 12px;margin:0 -12px}a{text-decoration:none}.entry h3{margin-bottom:0}.entry p{margin:4px 0;padding-bottom:1em;}.entry {margin-bottom: 6em};
+        </style>
+      </head>
+      <body>
+        <section>
+          <xsl:apply-templates select="atom:feed" />
+	  <hr/>
+        </section>
+        <section>
+          <xsl:apply-templates select="atom:feed/atom:entry" />
+        </section>
+      </body>
+    </html>
+  </xsl:template>
+
+  <xsl:template match="atom:feed">
+    <h1><xsl:value-of select="atom:title"/></h1>
+  </xsl:template>
+
+  <xsl:template match="atom:entry">
+    <div class="entry">
+      <h3>
+        <a target="_blank">
+          <xsl:attribute name="href">
+            <xsl:value-of select="atom:id"/>
+          </xsl:attribute>
+          <xsl:value-of select="atom:title"/>
+        </a>
+      </h3>
+      <div> 
+	      <xsl:copy-of select="atom:summary/xhtml:div/node()" />
+      </div>
+      <small>
+        Published: <xsl:value-of select="atom:updated" />
+      </small>
+    </div>
+  </xsl:template>
+
+</xsl:stylesheet>
+
+feed_EOF
+)
+
+install_atomic(){
+path_array=( $(echo $PATH | sed 's/:/\ /g') )
+path_count=${#path_array[@]}
+install_path=""
+x=0
+
+# Search for writable path. When you find one, stick that directory in a variable.
+while [ $x -lt $path_count ]; do
+    p2check="${path_array[${x}]}"
+    if [ -w $p2check ]; then
+        install_path="${path_array[${x}]}"
+	break
+    fi
+    x=$(( x+1 ))
+done
+
+if [ -z "$install_path" ]; then
+    echo "You need to manually copy ATOMiC to somewhere in your \$PATH."
+else
+    cp ATOMiC ${install_path}
+    chmod 755 ${install_path}/ATOMiC
+    echo "ATOMiC successfully installed at ${install_path}/ATOMiC"
+fi
+}
+
+### INSTALL ###
+if [ ! -d "$SRC" ]; then
+    echo "Dependencies met."
+    echo "Creating config directory - ${SRC}"
+    mkdir -p "${SRC}" "${TEMPLATES}"
+    echo "Generating config"
+    gen_conf
+    echo "Generating templates"
+    echo "$header_template" > "${TEMPLATES}/header.txt"
+    echo "$footer_template" > "${TEMPLATES}/footer.txt"
+    echo "$feed_template" > "${TEMPLATES}/feed.xslt"
+    echo "Initializing database"
+    sqlite3 $DATABASE "CREATE TABLE posts (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, pubdate TEXT, uuid TEXT, content TEXT);"
+    echo "Trying to install ATOMiC somewhere in your \$PATH"
+    install_atomic
+    echo "Firing up config file in editor..."
+    sleep 3
+    ${EDITOR:-nano} $CONFIG
+else
+    echo "ATOMiC is already installed - ${SRC}"
+fi
